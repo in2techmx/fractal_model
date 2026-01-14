@@ -1,1 +1,176 @@
 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Antigravity V23 | Visualizador Ontológico</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+        canvas { display: block; }
+        #ui-overlay { position: absolute; top: 20px; left: 20px; pointer-events: none; }
+        .label-3d {
+            position: absolute; padding: 5px 10px; background: rgba(0,0,0,0.8);
+            border: 1px solid #fff; font-size: 10px; pointer-events: auto; cursor: pointer;
+            transition: 0.2s; white-space: nowrap;
+        }
+        .label-3d:hover { background: #fff; color: #000; }
+        #detail-panel {
+            position: fixed; right: -400px; top: 0; width: 350px; height: 100vh;
+            background: rgba(5, 5, 5, 0.95); border-left: 2px solid #8A2BE2;
+            padding: 30px; transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            overflow-y: auto; z-index: 100;
+        }
+        #detail-panel.open { right: 0; }
+        h1 { font-size: 1.2rem; color: #00f3ff; margin-bottom: 5px; }
+        .meta { font-size: 0.7rem; color: #8A2BE2; text-transform: uppercase; margin-bottom: 20px; }
+        p { line-height: 1.6; font-size: 0.9rem; color: #ccc; }
+        .close-btn { cursor: pointer; color: #ff0055; float: right; }
+    </style>
+</head>
+<body>
+
+<div id="ui-overlay">
+    <div style="font-size: 1.5rem; font-weight: 800;">ANTIGRAVITY V23</div>
+    <div style="color: #666;">LECTURA FRACTAL ONTOLÓGICA</div>
+</div>
+
+<div id="detail-panel">
+    <span class="close-btn" onclick="closePanel()">[CERRAR]</span>
+    <div id="panel-content">
+        <h1 id="node-title">Selecciona un nodo</h1>
+        <div class="meta" id="node-meta">TIPO | PESO</div>
+        <p id="node-guide">Haz clic en las etiquetas para explorar la arquitectura del conocimiento.</p>
+    </div>
+</div>
+
+<div id="labels-container"></div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- DATA EXTRAÍDA DE datos_inteligencia.txt ---
+    const nodes = [
+        { id: "Eje", name: "Eje Pedagógico Ontológico", type: "MACRO", peso: 10, color: 0x0A1128, guide: "Esencia teleológica fundamental: forjar individuos capaces de transformar su realidad socio-existencial." },
+        { id: "Genesis", name: "Génesis Onto-Epistemológica", type: "MESO", peso: 9, color: 0x28C76F, guide: "Explora mito, magia, religión, ciencia y filosofía. Cimientos del ser." },
+        { id: "Logica", name: "Arquitectónica Lógico-Argumentativa", type: "MESO", peso: 9, color: 0x6C5CE7, guide: "Instrumentación de la razón, lenguaje y lógica. Bases para la deliberación." },
+        { id: "Silencio", name: "Silencio Epistémico", type: "MESO", peso: 7, color: 0xFFC107, guide: "Ausencia de exploración de ontologías no occidentales. Vacío estructural." },
+        { id: "Brecha", name: "Brecha Lógico-Praxeológica", type: "MESO", peso: 7, color: 0xFFC107, guide: "Discontinuidad entre lógica formal y aplicación ética real." },
+        { id: "Duda", name: "Desde la Duda Inicial", type: "MICRO", peso: 7, color: 0xDC143C, guide: "El viaje del aprendiz: de la problematización a la autorreflexión." },
+        { id: "Horizonte", name: "Horizonte de Acción Consciente", type: "MICRO", peso: 8, color: 0xFFD700, guide: "Culminación: co-creación de la realidad social y participación pública." },
+        { id: "Agora", name: "Ágora Sintético", type: "MICRO", peso: 9, color: 0x8A2BE2, guide: "NODO INNOVADOR: Simulador de deliberación transcultural y ética." }
+    ];
+
+    const paths = [
+        { from: "Genesis", to: "Logica" }, { from: "Logica", to: "Genesis" },
+        { from: "Eje", to: "Genesis" }, { from: "Eje", to: "Logica" },
+        { from: "Duda", to: "Genesis" }, { from: "Genesis", to: "Horizonte" },
+        { from: "Duda", to: "Logica" }, { from: "Logica", to: "Horizonte" },
+        { from: "Eje", to: "Horizonte" }, { from: "Silencio", to: "Agora" },
+        { from: "Brecha", to: "Agora" }, { from: "Agora", to: "Eje" }
+    ];
+
+    // --- CONFIGURACIÓN THREE.JS ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const nodeObjects = {};
+
+    // Crear Nodos
+    nodes.forEach((n, i) => {
+        let radius = n.peso * 1.5;
+        let geometry = n.type === "MACRO" ? new THREE.IcosahedronGeometry(radius, 1) : new THREE.SphereGeometry(radius, 16, 16);
+        let material = new THREE.MeshBasicMaterial({ color: n.color, wireframe: true });
+        let mesh = new THREE.Mesh(geometry, material);
+
+        // Posicionamiento Fractal (Simple)
+        let angle = (i / nodes.length) * Math.PI * 2;
+        let dist = n.type === "MACRO" ? 0 : (n.type === "MESO" ? 80 : 140);
+        mesh.position.set(Math.cos(angle) * dist, (Math.random()-0.5)*50, Math.sin(angle) * dist);
+        
+        group.add(mesh);
+        nodeObjects[n.id] = mesh;
+
+        // Label HTML
+        const div = document.createElement('div');
+        div.className = 'label-3d';
+        div.textContent = n.name;
+        div.style.borderColor = `#${n.color.toString(16).padStart(6, '0')}`;
+        div.onclick = () => showDetail(n);
+        document.getElementById('labels-container').appendChild(div);
+        n.el = div;
+    });
+
+    // Crear Caminos (Paths)
+    paths.forEach(p => {
+        const material = new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.5 });
+        const points = [nodeObjects[p.from].position, nodeObjects[p.to].position];
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        group.add(line);
+    });
+
+    camera.position.z = 250;
+
+    // --- FUNCIONES ---
+    window.showDetail = (n) => {
+        document.getElementById('node-title').textContent = n.name;
+        document.getElementById('node-meta').textContent = `${n.type} | PESO: ${n.peso}`;
+        document.getElementById('node-guide').textContent = n.guide;
+        document.getElementById('detail-panel').classList.add('open');
+        controls.autoRotate = false;
+    };
+
+    window.closePanel = () => {
+        document.getElementById('detail-panel').classList.remove('open');
+        controls.autoRotate = true;
+    };
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        
+        // Actualizar Labels
+        nodes.forEach(n => {
+            const vector = nodeObjects[n.id].position.clone();
+            vector.applyMatrix4(group.matrixWorld);
+            vector.project(camera);
+            const x = (vector.x * .5 + .5) * window.innerWidth;
+            const y = (vector.y * -.5 + .5) * window.innerHeight;
+            n.el.style.left = `${x}px`;
+            n.el.style.top = `${y}px`;
+            n.el.style.display = vector.z > 1 ? 'none' : 'block';
+        });
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.onresize = () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+</script>
+</body>
+</html>
